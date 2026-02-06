@@ -21,4 +21,4 @@ site:
       icon: download
   options:
     favicon: favicon.ico
-    base_url: /Predicting-Red-Tides
+    base_url: https://victormoralesblanco123.github.io/Predicting-Red-Tides/
