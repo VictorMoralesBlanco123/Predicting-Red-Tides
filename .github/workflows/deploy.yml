@@ -1,0 +1,35 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main  # Set a branch name to trigger deployment
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: "pages"
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install MyST
+        run: |
+          pip install mystmd
+      - name: Build MyST Site
+        run: myst build --html
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _build/html
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
