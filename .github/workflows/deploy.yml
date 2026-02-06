@@ -1,55 +1,40 @@
-name: Deploy to GitHub Pages
+name: deploy-book
 
 on:
   push:
     branches:
-      - main  # or master
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
+      - master
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  deploy-book:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # To push a branch
+      pages: write     # To deploy to Pages
+      id-token: write  # To verify the deployment
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      # Install Python
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: 3.11
 
-      - name: Install MyST
-        run: pip install mystmd
-
-      - name: Build MyST Site
-        run: myst build --html
-
-      # --- DEBUG & FIX SECTION ---
-      - name: Force .nojekyll and Debug
+      # Install Jupyter Book
+      - name: Install dependencies
         run: |
-          # 1. Force creation of .nojekyll
-          touch _build/html/.nojekyll
-          
-          # 2. List all files so we can see them in the logs
-          echo "Listing build directory contents:"
-          ls -R _build/html
-      # ---------------------------
+          pip install jupyter-book
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      # Build the book
+      - name: Build the book
+        run: |
+          jupyter-book build PredictingRedTides/
+
+      # Upload the built HTML to GitHub Pages
+      - name: GitHub Pages action
+        uses: peaceiris/actions-gh-pages@v3
         with:
-          path: '_build/html'
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: PredictingRedTides/_build/html
