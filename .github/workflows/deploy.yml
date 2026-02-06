@@ -38,7 +38,10 @@ jobs:
 
       # STEP 3: Build using the new command
       - name: Build HTML
-        run: myst build . --html
+        run: myst build --html
+
+      - name: Fix CSS (Add .nojekyll)
+        run: touch _build/html/.nojekyll
 
       # STEP 4: Upload the result
       - name: Upload artifact
