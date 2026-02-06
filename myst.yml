@@ -22,4 +22,3 @@ site:
       icon: download
   options:
     favicon: favicon.ico
-    base_url: /Predicting-Red-Tides/
