@@ -38,7 +38,7 @@ jobs:
       - name: Build MyST Site
         run: myst build --html
 
-      - name: Create .nojekyll file
+      - name: Create .nojekyll to unblock CSS
         run: touch _build/html/.nojekyll
 
       - name: Upload artifact
