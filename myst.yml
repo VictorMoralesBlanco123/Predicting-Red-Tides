@@ -1,0 +1,23 @@
+# See docs at: https://mystmd.org/guide/frontmatter
+version: 1
+project:
+  id: 98e22f5a-97c3-43e5-9695-946bb291d410
+  title: "Mitigating prediction drift in harmful algal bloom forecasting: A hybrid deep learning and ensemble Kalman filter framework"
+  keywords: ["harmful algae blooms", "red tides", "machine learning", "deep learning", "ensemble Kalman filter", "LSTM", "uncertainty analysis", "data assimilation", "Florida"]
+  authors:
+    - name: Victor M. Blanco
+    - name: Daniel Krutky
+    - name: Peter Nguyen
+    - name: Ahmed S. Elshall
+    - name: Ming Ye
+    - name: Michael L. Parsons
+
+site:
+  template: book-theme
+  actions:
+    - title: Download Dataset
+      url: "data_weekly_interpolated.csv"
+      static: true
+      icon: download
+  options:
+    favicon: favicon.ico
