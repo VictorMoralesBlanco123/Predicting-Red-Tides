@@ -3,17 +3,17 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
-      - master
+      - master  # IMPORTANT: Check if your branch is 'master' or 'main'
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
 concurrency:
-  group: 'pages'
+  group: "pages"
   cancel-in-progress: false
+
 jobs:
   deploy:
     environment:
@@ -21,37 +21,9 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     runs-on: ubuntu-latest
-    concurrency:
-      group: "pages"
-      cancel-in-progress: false
+
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v3
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18.x
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18.x
-
-      - name: Install MyST Markdown
-        run: npm install -g mystmd
-
-      - name: Build HTML Assets
-        run: myst build --html
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: './_build/html'
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -59,19 +31,21 @@ jobs:
           python-version: '3.11'
 
       - name: Install MyST
-        run: |
-          pip install mystmd
+        run: pip install mystmd
 
       - name: Build MyST Site
         run: myst build --html
 
+      # --- THE CRITICAL FIX FOR CSS ---
+      # This creates the empty .nojekyll file inside the build folder
       - name: Create .nojekyll to unblock CSS
         run: touch _build/html/.nojekyll
+      # --------------------------------
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: _build/html
+          path: '_build/html'
 
       - name: Deploy to GitHub Pages
         id: deployment
