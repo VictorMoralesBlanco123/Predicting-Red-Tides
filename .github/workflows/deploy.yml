@@ -5,6 +5,9 @@ on:
     branches:
       - master
 
+env:
+  BASE_URL: /${{ github.event.repository.name }}
+
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
@@ -23,33 +26,20 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      # STEP 1: Use Node.js (Required for the new MyST engine)
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: "20"
-
-      # STEP 2: Install the NEW engine (mystmd)
-      - name: Install MyST
+          node-version: 18.x
+      - name: Install MyST Markdown
         run: npm install -g mystmd
-
-      # STEP 3: Build using the new command
-      - name: Build HTML
+      - name: Build HTML Assets
         run: myst build --html
-
-      - name: Fix CSS (Add .nojekyll)
-        run: touch _build/html/.nojekyll
-
-      # STEP 4: Upload the result
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: _build/html
-
-      # STEP 5: Deploy
+          path: './_build/html'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
