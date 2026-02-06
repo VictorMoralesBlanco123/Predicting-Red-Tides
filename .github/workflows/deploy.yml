@@ -30,7 +30,7 @@ jobs:
       # Build the book
       - name: Build the book
         run: |
-          jupyter-book build
+          jupyter-book build . --html
 
       # Upload the built HTML to GitHub Pages
       - name: GitHub Pages action
