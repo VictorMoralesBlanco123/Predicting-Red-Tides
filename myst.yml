@@ -1,6 +1,7 @@
 # See docs at: https://mystmd.org/guide/frontmatter
 version: 1
 project:
+  url: https://victormoralesblanco123.github.io/Predicting-Red-Tides/
   id: 98e22f5a-97c3-43e5-9695-946bb291d410
   title: "Mitigating prediction drift in harmful algal bloom forecasting: A hybrid deep learning and ensemble Kalman filter framework"
   keywords: ["harmful algae blooms", "red tides", "machine learning", "deep learning", "ensemble Kalman filter", "LSTM", "uncertainty analysis", "data assimilation", "Florida"]
@@ -21,4 +22,4 @@ site:
       icon: download
   options:
     favicon: favicon.ico
-    base_url: https://victormoralesblanco123.github.io/Predicting-Red-Tides/
+    base_url: /Predicting-Red-Tides/
