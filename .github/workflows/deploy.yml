@@ -3,7 +3,7 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
-      - master  # IMPORTANT: Check if your branch is 'master' or 'main'
+      - main  # or master
 
 permissions:
   contents: read
@@ -19,9 +19,7 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -36,11 +34,16 @@ jobs:
       - name: Build MyST Site
         run: myst build --html
 
-      # --- THE CRITICAL FIX FOR CSS ---
-      # This creates the empty .nojekyll file inside the build folder
-      - name: Create .nojekyll to unblock CSS
-        run: touch _build/html/.nojekyll
-      # --------------------------------
+      # --- DEBUG & FIX SECTION ---
+      - name: Force .nojekyll and Debug
+        run: |
+          # 1. Force creation of .nojekyll
+          touch _build/html/.nojekyll
+          
+          # 2. List all files so we can see them in the logs
+          echo "Listing build directory contents:"
+          ls -R _build/html
+      # ---------------------------
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
