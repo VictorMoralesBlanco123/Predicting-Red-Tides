@@ -1,16 +1,20 @@
-name: deploy-book
+name: Deploy Book
 
-# Trigger the build only when you push to the main branch
 on:
   push:
     branches:
       - master
 
-# Permissions needed for GitHub Pages
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -19,30 +23,30 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      # STEP 1: Use Node.js (Required for the new MyST engine)
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          python-version: 3.11
+          node-version: "20"
 
-      - name: Install Jupyter Book
-        run: |
-          pip install jupyter-book
+      # STEP 2: Install the NEW engine (mystmd)
+      - name: Install MyST
+        run: npm install -g mystmd
 
-      # CRITICAL FIX: Build the current directory (.)
-      - name: Build the book
-        run: |
-          jupyter-book build .
+      # STEP 3: Build using the new command
+      - name: Build HTML
+        run: myst build --html
 
-      # Upload the built HTML files
-      - name: Upload Pages artifact
+      # STEP 4: Upload the result
+      - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: _build/html
 
-      # Deploy to GitHub Pages
+      # STEP 5: Deploy
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
