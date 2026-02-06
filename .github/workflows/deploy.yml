@@ -38,7 +38,7 @@ jobs:
 
       # STEP 3: Build using the new command
       - name: Build HTML
-        run: myst build --html
+        run: myst build . --html
 
       # STEP 4: Upload the result
       - name: Upload artifact
