@@ -18,8 +18,7 @@ site:
     - title: Download Dataset
       url: "data_weekly_interpolated.csv"
       static: true
-#      icon: download
+      icon: download
   options:
     favicon: favicon.ico
-
     base_url: /Predicting-Red-Tides/
