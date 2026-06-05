@@ -5,6 +5,7 @@ project:
   id: 98e22f5a-97c3-43e5-9695-946bb291d410
   title: "Diagnosing prediction drift in harmful algal bloom forecasting: A hybrid deep learning and ensemble Kalman filter framework"
   keywords: ["harmful algae blooms", "red tides", "machine learning", "deep learning", "ensemble Kalman filter", "LSTM", "uncertainty analysis", "data assimilation", "Florida"]
+  thumbnail: logo.png
   authors:
     - name: Victor M. Blanco
     - name: Daniel Krutky
@@ -12,6 +13,31 @@ project:
     - name: Ahmed S. Elshall
     - name: Ming Ye
     - name: Michael L. Parsons
+  exclude:
+    - LSTM+EnKF_v2.ipynb
+  toc:
+    - file: README.md
+    - title: Pipeline Guide
+      children:
+        - file: pipeline_overview.md
+        - file: artifact_contract.md
+    - title: Notebook Pipeline
+      children:
+        - file: 01_data_pipeline.ipynb
+        - file: 02_tuning.ipynb
+        - file: 03_train_and_baseline_eval.ipynb
+        - file: 04_enkf_uncertainty.ipynb
+        - file: 04a_enkf_innovation_decomposition.ipynb
+        - file: 04b_enkf_variance_decomposition.ipynb
+        - file: 05_statistical_analysis.ipynb
+        - file: 06_alternative_models.ipynb
+        - file: 07_final_comparison.ipynb
+        - file: 08_diagnostics.ipynb
+        - file: 09_lstm_validators.ipynb
+        - file: 09a_block_bootstrap_power_analysis.ipynb
+    - title: Project Reference
+      children:
+        - file: support_files.md
 
 site:
   template: book-theme
