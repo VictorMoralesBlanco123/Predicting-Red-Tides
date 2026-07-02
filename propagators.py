@@ -341,7 +341,8 @@ class SeasonalAR1Propagator(BasePropagator):
 # ---------------------------------------------------------------------------
 
 def fit_all_propagators(train_df: pd.DataFrame, state_vars: Sequence[str],
-                        manual_q_diag: Optional[Sequence[float]] = None) -> dict:
+                        manual_q_diag: Optional[Sequence[float]] = None,
+                        seasonal_n_harmonics: int = 2) -> dict:
     """Fit all four propagators on train_df and return a dict keyed by name.
 
     The random-walk propagator can be fit to your existing manual Q via
@@ -352,7 +353,7 @@ def fit_all_propagators(train_df: pd.DataFrame, state_vars: Sequence[str],
         "RandomWalk":   RandomWalkPropagator(state_vars).fit(train_df, manual_q_diag=manual_q_diag),
         "AR1":          AR1Propagator(state_vars).fit(train_df),
         "VAR1":         VAR1Propagator(state_vars).fit(train_df),
-        "SeasonalAR1":  SeasonalAR1Propagator(state_vars, n_harmonics=2).fit(train_df),
+        "SeasonalAR1":  SeasonalAR1Propagator(state_vars, n_harmonics=seasonal_n_harmonics).fit(train_df),
     }
     return propagators
 

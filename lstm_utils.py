@@ -38,21 +38,43 @@ from shared_config import DEFAULT_HPS_DICT
 # ---------------------------------------------------------------------------
 # Sequence creation  (Part 6)
 # ---------------------------------------------------------------------------
-def create_sequences_from_df(df, seq_length, target_col_idx=0, pred_step=1, return_targets=True):
+def create_sequences_from_df(df, seq_length, target_col_idx=0, pred_step=1,
+                             return_targets=True, drop_target_from_x=True):
     """
-    Creates sequences for LSTM model from a DataFrame.
+    Creates sequences for an LSTM model from a DataFrame.
+
+    The column at ``target_col_idx`` is the prediction target. When
+    ``drop_target_from_x=True`` (default) that column is used ONLY to build
+    ``y`` and is removed from the ``X`` feature channels, so the label never
+    enters the model input. The remaining columns keep their original order.
+
+    Set ``drop_target_from_x=False`` to recover the legacy behaviour in which
+    every column — including the target — is part of ``X`` (this was the
+    source of the bloom_target leakage; keep it False only for non-target
+    autoregressive windowing).
+
+    Note: the target column is only dropped when ``return_targets=True`` (i.e.
+    when ``target_col_idx`` actually denotes a target). With
+    ``return_targets=False`` all columns are retained.
     """
     xs = []
     ys = []
 
     # Convert dataframe to numpy if needed
-    data = df.values if hasattr(df, 'values') else df
+    data = df.values if hasattr(df, 'values') else np.asarray(df)
+    n_cols = data.shape[1] if data.ndim == 2 else 1
+
+    # Decide which columns become X feature channels.
+    if drop_target_from_x and return_targets and data.ndim == 2:
+        feature_idx = [c for c in range(n_cols) if c != target_col_idx]
+    else:
+        feature_idx = None  # keep all columns
 
     # Loop through data
     # We stop earlier to account for the prediction step ahead (pred_step)
     for i in range(len(data) - seq_length - pred_step + 1):
-        x = data[i:(i + seq_length)]
-        xs.append(x)
+        window = data[i:(i + seq_length)]
+        xs.append(window[:, feature_idx] if feature_idx is not None else window)
 
         if return_targets:
             # Target is 'pred_step' steps after the sequence ends

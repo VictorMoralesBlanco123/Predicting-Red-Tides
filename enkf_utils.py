@@ -385,6 +385,12 @@ def _best_f1_threshold_local(y_true, y_prob, fallback=0.5):
 
     y_true = np.asarray(y_true).flatten().astype(int)
     y_prob = np.asarray(y_prob).flatten()
+    if len(y_true) != len(y_prob):
+        n = min(len(y_true), len(y_prob))
+        y_true = y_true[-n:]
+        y_prob = y_prob[-n:]
+    if len(y_true) == 0:
+        return float(fallback)
     if len(np.unique(y_true)) < 2:
         return float(fallback)
     precision, recall, thresholds = precision_recall_curve(y_true, y_prob)
@@ -406,6 +412,212 @@ def _regularize_covariance(cov, dim):
     cov = (cov + cov.T) / 2.0
     cov = cov + 1e-9 * np.eye(dim)
     return cov
+
+
+def _sample_zero_mean_mvn(rng, cov, size):
+    """Draw ``size`` samples from N(0, cov), robust to ill-conditioned / near-PSD
+    covariances.
+
+    The fitted propagator Q spans a huge dynamic range across the state vars
+    (kb variance ~1e12 vs. wind ~1e1). ``np.cov`` returns a matrix that is PSD
+    in exact arithmetic but, at that condition number, carries tiny negative
+    eigenvalues from floating-point roundoff. ``rng.multivariate_normal`` then
+    emits ``RuntimeWarning: covariance is not symmetric positive-semidefinite``
+    (and the surrounding ``try/except LinAlgError`` never fires, because that
+    path warns rather than raising).
+
+    We factor the symmetrised covariance via eigendecomposition and clip
+    negative roundoff eigenvalues to zero, which is mathematically equivalent
+    to sampling from the nearest PSD matrix and produces no warning.
+    """
+    cov = np.asarray(cov, dtype=float)
+    cov = (cov + cov.T) / 2.0
+    vals, vecs = np.linalg.eigh(cov)
+    vals = np.clip(vals, 0.0, None)
+    factor = vecs * np.sqrt(vals)                      # cov ~= factor @ factor.T
+    z = rng.standard_normal(size=(size, cov.shape[0]))
+    return z @ factor.T
+
+
+def enkf_preprocess_drivers_with_propagator(
+    df,
+    state_vars,
+    propagator,
+    R_diag,
+    n_enkf=50,
+    seed=42,
+    Q_matrix=None,
+    append_std=True,
+    std_suffix="_enkf_std",
+):
+    """Causally smooth driver columns with a fitted propagator in the forecast step.
+
+    Unlike ``run_propagator_sensitivity_experiment()``, this is a true
+    preprocessing path: the selected propagator is used to filter the whole
+    chronological driver series before feature engineering, sequence creation,
+    and model training.  The propagator must already be fit on the training
+    slice only.
+    """
+    rng = np.random.default_rng(seed)
+    out = df.copy()
+    state_vars = list(state_vars)
+    observations = df[state_vars].astype(float).values
+    n_steps, dim = observations.shape
+
+    valid_mask = ~np.any(np.isnan(observations), axis=1)
+    if not valid_mask.any():
+        raise ValueError("No complete observations available to seed the EnKF.")
+    first_valid_idx = int(np.argmax(valid_mask))
+    x0 = observations[first_valid_idx]
+
+    base_q = Q_matrix if Q_matrix is not None else getattr(propagator, "Q", None)
+    if base_q is None:
+        base_q = np.eye(dim) * 1e-6
+    Q = _regularize_covariance(base_q, dim)
+    R = _regularize_covariance(R_diag, dim)
+
+    p0_diag = np.maximum((np.abs(x0) * 0.30) ** 2, np.diag(Q))
+    P0 = _regularize_covariance(np.diag(p0_diag), dim)
+    enkf = EnsembleKalmanFilter(x0, P0, dim_z=dim, N=n_enkf)
+
+    start_week = None
+    if isinstance(df.index, pd.DatetimeIndex) and len(df.index) > first_valid_idx:
+        start_week = int(df.index[first_valid_idx].isocalendar().week)
+    if hasattr(propagator, "reset"):
+        propagator.reset(start_week_of_year=start_week)
+
+    filtered = np.zeros_like(observations, dtype=float)
+    std = np.zeros_like(observations, dtype=float)
+
+    for t in range(n_steps):
+        if t > first_valid_idx:
+            forecast_ensemble = propagator.propagate(enkf.ensemble.T).T
+            noise = _sample_zero_mean_mvn(rng, Q, enkf.N)
+            enkf.ensemble = forecast_ensemble + noise
+            enkf.x = np.mean(enkf.ensemble, axis=0)
+            enkf.P = np.cov(enkf.ensemble.T)
+
+        z = observations[t]
+        if np.any(np.isnan(z)):
+            z = np.where(np.isnan(z), enkf.ensemble.mean(axis=0), z)
+        enkf.update(z, R)
+        filtered[t] = enkf.ensemble.mean(axis=0)
+        std[t] = enkf.ensemble.std(axis=0)
+
+    out[state_vars] = filtered
+    if append_std:
+        for j, var in enumerate(state_vars):
+            out[f"{var}{std_suffix}"] = std[:, j]
+    return out
+
+
+def enkf_with_propagator_diagnostics(
+    observations,
+    R_diag,
+    propagator,
+    Q_matrix=None,
+    n_enkf=50,
+    seed=42,
+    index=None,
+):
+    """Run a stochastic EnKF with a fitted propagator and return diagnostics.
+
+    This mirrors ``enkf_preprocess_drivers_with_propagator`` but preserves the
+    per-step ensemble members, innovations, Kalman-gain diagonal, and forecast
+    / analysis covariance diagonals that notebook 04a and 04b need.
+    """
+    rng = np.random.default_rng(seed)
+    observations = np.asarray(observations, dtype=float)
+    n_steps, dim = observations.shape
+
+    base_q = Q_matrix if Q_matrix is not None else getattr(propagator, "Q", None)
+    if base_q is None:
+        base_q = np.eye(dim) * 1e-6
+    Q = _regularize_covariance(base_q, dim)
+    R = _regularize_covariance(R_diag, dim)
+
+    valid_mask = ~np.any(np.isnan(observations), axis=1)
+    if not valid_mask.any():
+        raise ValueError("No valid observations.")
+    first_valid_idx = int(np.argmax(valid_mask))
+    x0 = observations[first_valid_idx]
+
+    p0_diag = np.maximum((np.abs(x0) * 0.30) ** 2, np.diag(Q))
+    P0 = _regularize_covariance(np.diag(p0_diag), dim)
+    ensemble = rng.multivariate_normal(x0, P0, size=n_enkf)
+
+    start_week = None
+    if index is not None and len(index) > first_valid_idx:
+        try:
+            start_week = int(pd.DatetimeIndex(index)[first_valid_idx].isocalendar().week)
+        except Exception:
+            start_week = None
+    if hasattr(propagator, "reset"):
+        propagator.reset(start_week_of_year=start_week)
+
+    members = np.zeros((n_enkf, n_steps, dim), dtype=np.float64)
+    x_f_mean = np.zeros((n_steps, dim), dtype=np.float64)
+    x_a_mean = np.zeros((n_steps, dim), dtype=np.float64)
+    d_b = np.full((n_steps, dim), np.nan, dtype=np.float64)
+    d_a = np.full((n_steps, dim), np.nan, dtype=np.float64)
+    K_diag = np.zeros((n_steps, dim), dtype=np.float64)
+    P_f_diag = np.zeros((n_steps, dim), dtype=np.float64)
+    P_a_diag = np.zeros((n_steps, dim), dtype=np.float64)
+    obs_used = np.zeros(n_steps, dtype=bool)
+
+    for t in range(n_steps):
+        if t > first_valid_idx:
+            ens_f = propagator.propagate(ensemble.T).T
+            noise = _sample_zero_mean_mvn(rng, Q, n_enkf)
+            ens_f = ens_f + noise
+        else:
+            ens_f = ensemble.copy()
+
+        xf = ens_f.mean(axis=0)
+        Pf = np.cov(ens_f.T) if n_enkf > 1 else np.zeros((dim, dim))
+        x_f_mean[t] = xf
+        P_f_diag[t] = np.diag(Pf)
+
+        y = observations[t]
+        if np.any(np.isnan(y)):
+            ens_a = ens_f
+            xa = xf
+            Pa = Pf
+        else:
+            innov = y - xf
+            d_b[t] = innov
+            obs_used[t] = True
+
+            S = Pf + R
+            try:
+                K_gain = np.linalg.solve(S.T, Pf.T).T
+            except np.linalg.LinAlgError:
+                K_gain = Pf @ np.linalg.pinv(S)
+            K_diag[t] = np.diag(K_gain)
+
+            v = rng.multivariate_normal(np.zeros(dim), R, size=n_enkf)
+            y_pert = y[None, :] + v
+            ens_a = ens_f + (y_pert - ens_f) @ K_gain.T
+            xa = ens_a.mean(axis=0)
+            Pa = np.cov(ens_a.T) if n_enkf > 1 else np.zeros((dim, dim))
+            d_a[t] = y - xa
+
+        x_a_mean[t] = xa
+        P_a_diag[t] = np.diag(Pa)
+        members[:, t, :] = ens_a
+        ensemble = ens_a
+
+    return {
+        "members": members,
+        "x_forecast_mean": x_f_mean,
+        "x_analysis_mean": x_a_mean,
+        "innovations_background": d_b,
+        "innovations_analysis": d_a,
+        "kalman_gain_diag": K_diag,
+        "P_forecast_diag": P_f_diag,
+        "P_analysis_diag": P_a_diag,
+        "obs_used_mask": obs_used,
+    }
 
 
 def run_propagator_sensitivity_experiment(
@@ -495,10 +707,7 @@ def run_propagator_sensitivity_experiment(
                     break
 
                 forecast_ensemble = prop.propagate(enkf.ensemble.T).T
-                try:
-                    noise = np.random.multivariate_normal(np.zeros(dim), Q_matrix, size=enkf.N)
-                except np.linalg.LinAlgError:
-                    noise = np.random.multivariate_normal(np.zeros(dim), Q_matrix + 1e-6 * np.eye(dim), size=enkf.N)
+                noise = _sample_zero_mean_mvn(np.random, Q_matrix, enkf.N)
                 enkf.ensemble = forecast_ensemble + noise
                 enkf.x = np.mean(enkf.ensemble, axis=0)
                 enkf.P = np.cov(enkf.ensemble.T)

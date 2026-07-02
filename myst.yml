@@ -26,6 +26,7 @@ project:
         - file: 01_data_pipeline.ipynb
         - file: 02_tuning.ipynb
         - file: 03_train_and_baseline_eval.ipynb
+        - file: 03a_fair_propagator_comparison.ipynb
         - file: 04_enkf_uncertainty.ipynb
         - file: 04a_enkf_innovation_decomposition.ipynb
         - file: 04b_enkf_variance_decomposition.ipynb
@@ -35,6 +36,7 @@ project:
         - file: 08_diagnostics.ipynb
         - file: 09_lstm_validators.ipynb
         - file: 09a_block_bootstrap_power_analysis.ipynb
+        - file: 10_onset_evaluation.ipynb
     - title: Project Reference
       children:
         - file: support_files.md

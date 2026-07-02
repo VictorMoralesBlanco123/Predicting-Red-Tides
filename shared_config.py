@@ -9,6 +9,7 @@ This module is imported by every notebook in the split pipeline:
     01_data_pipeline.ipynb
     02_tuning.ipynb
     03_train_and_baseline_eval.ipynb
+    03a_fair_propagator_comparison.ipynb
     04_enkf_uncertainty.ipynb
     05_statistical_analysis.ipynb
     06_alternative_models.ipynb
@@ -74,14 +75,18 @@ BEST_HPS_PATH      = os.path.join(INTERMEDIATE_DIR, 'best_hps.json')
 BASELINE_METRICS_PATH = os.path.join(INTERMEDIATE_DIR, 'baseline_metrics.json')
 LSTM_TEST_PROBS_PATH  = os.path.join(INTERMEDIATE_DIR, 'lstm_test_probs.npy')
 MC_PREDS_PATH         = os.path.join(INTERMEDIATE_DIR, 'mc_predictions.npy')
+MC_DROPOUT_PREDS_PATH = os.path.join(INTERMEDIATE_DIR, 'mc_dropout_predictions.npy')
 ENKF_METRICS_PATH     = os.path.join(INTERMEDIATE_DIR, 'enkf_metrics.json')
 ALT_MODEL_STREAMS_PATH = os.path.join(INTERMEDIATE_DIR, 'alt_model_streams.npz')
 SENSITIVITY_RESULTS_PATH = os.path.join(INTERMEDIATE_DIR, 'sensitivity_results.json')
 PROPAGATOR_RESULTS_PATH  = os.path.join(INTERMEDIATE_DIR, 'propagator_sensitivity_results.json')
+PROPAGATOR_COMPARISON_DIR = os.path.join(OUTPUT_DIR, 'propagator_comparison')
+PROPAGATOR_COMPARISON_TABLE_PATH = os.path.join(PROPAGATOR_COMPARISON_DIR, 'TableS4_propagator_sensitivity.csv')
 
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(INTERMEDIATE_DIR, exist_ok=True)
+os.makedirs(PROPAGATOR_COMPARISON_DIR, exist_ok=True)
 
 # ---------------------------------------------------------------------------
 # Core parameters  (was Part 1, cell 6)
@@ -123,6 +128,8 @@ LSTM_ENKF_METRICS_PATH = os.path.join(INTERMEDIATE_DIR, 'lstm_enkf_metrics.json'
 ENKF_MC_PREDICTIONS_CSV_PATH = os.path.join(OUTPUT_DIR, 'predictions_enkf_mc.csv')
 ENKF_MC_METRICS_JSON_PATH = os.path.join(OUTPUT_DIR, 'metrics_enkf_mc.json')
 ALT_MODEL_TUNING_SUMMARY_PATH = os.path.join(INTERMEDIATE_DIR, 'alt_model_tuning_summary.json')
+RAW_BEST_HPS_ONSET_PATH = os.path.join(INTERMEDIATE_DIR, 'best_hps_lstm_onset.json')
+ENKF_BEST_HPS_ONSET_PATH = os.path.join(INTERMEDIATE_DIR, 'best_hps_lstm_enkf_onset.json')
 
 
 # ---------------------------------------------------------------------------
@@ -131,7 +138,7 @@ ALT_MODEL_TUNING_SUMMARY_PATH = os.path.join(INTERMEDIATE_DIR, 'alt_model_tuning
 BASE_FEATURES = [
     'zos', 'water_temp',
     'peace_discharge', 'peace_TN', 'peace_TP',
-    'wind_u', 'wind_v'
+    'wind_u', 'wind_v','wind_alongshore'
 ]
 BASIC_LAG_CONFIG = {
     'kb_lags':  [1, 2],
@@ -149,7 +156,7 @@ VALIDATION_SPLIT_RATIO = 0.15
 
 # --- LSTM defaults (used when PERFORM_TUNING=False or as fallbacks) ---
 DEFAULT_HPS_DICT = {
-    'seq_length':        12,
+    'seq_length':        SEQUENCE_LENGTH,
     'n_lstm_layers':     2,
     'units_1':           64,
     'units_2':           32,
@@ -184,6 +191,8 @@ ENKF_PROTECT_VARS = ['kb']
 ENKF_PROTECT_OBS_FRAC = 0.02
 ENKF_APPEND_STD_FEATURES = True
 ENKF_NOISE_ESTIMATION = 'manual'
+ENKF_PREPROCESSOR_PROPAGATOR = 'SeasonalAR1'
+ENKF_SEASONAL_N_HARMONICS = 2
 MANUAL_R_DIAG = [
     (100.0 * 0.01)**2,
     (0.2  * 0.01)**2,
@@ -213,6 +222,7 @@ def print_config_summary():
     print(f"Class Weighting Enabled:       {USE_CLASS_WEIGHT}")
     print(f"Hyperparameter Tuning Enabled: {PERFORM_TUNING}")
     print(f"EnKF Enabled:                  {PERFORM_ENKF}")
+    print(f"EnKF Propagator:               {ENKF_PREPROCESSOR_PROPAGATOR}")
     print(f"FAST_TEST Mode:                {FAST_TEST}")
     print(f"Sequence Length (default):     {SEQUENCE_LENGTH}")
     print(f"Forecast Horizon:              {FORECAST_HORIZON} week(s)")

@@ -98,6 +98,26 @@ def load_hps(path, defaults):
         return hps_with_defaults(json.load(f), defaults)
 
 
+def assert_hps_sequence_match(label, hps, seq_len, x_array=None):
+    """Validate that tuned HPs and sequence artifacts use the same lookback."""
+    seq_len = int(seq_len)
+    h = hps_with_defaults(hps, {}) if hps is not None else {}
+    if "seq_length" in h and int(h["seq_length"]) != seq_len:
+        raise ValueError(
+            f"{label} seq_length mismatch: HP file has {int(h['seq_length'])}, "
+            f"but sequence artifact has {seq_len}. Re-run notebook 02 and then "
+            "rerun downstream notebooks from a fresh kernel."
+        )
+    if x_array is not None:
+        x_seq_len = int(np.asarray(x_array).shape[1])
+        if x_seq_len != seq_len:
+            raise ValueError(
+                f"{label} sequence artifact metadata says seq_length={seq_len}, "
+                f"but X has shape[1]={x_seq_len}."
+            )
+    return seq_len
+
+
 def build_sequence_artifact(
     train_scaled_df,
     val_scaled_df,
@@ -108,10 +128,16 @@ def build_sequence_artifact(
     forecast_horizon,
     output_path,
 ):
-    """Create and persist aligned LSTM arrays from already-scaled splits."""
-    cols_to_use = list(feature_columns)
-    if target_binary_col not in cols_to_use:
-        cols_to_use.append(target_binary_col)
+    """Create and persist aligned LSTM arrays from already-scaled splits.
+
+    The target column is used ONLY to extract ``y``. It is removed from the X
+    feature channels (see ``create_sequences_from_df(drop_target_from_x=True)``)
+    so the binary bloom label never enters the model input. The persisted
+    ``feature_columns`` therefore lists the X channels only (target excluded).
+    """
+    feature_only = [c for c in feature_columns if c != target_binary_col]
+    cols_to_use = list(feature_only)
+    cols_to_use.append(target_binary_col)            # target last, used only for y
     target_idx = cols_to_use.index(target_binary_col)
 
     sequences = {}
@@ -126,6 +152,7 @@ def build_sequence_artifact(
             target_col_idx=target_idx,
             pred_step=forecast_horizon,
             return_targets=True,
+            drop_target_from_x=True,
         )
         sequences[f"X_{split_name}"] = np.asarray(X, dtype=np.float32)
         sequences[f"y_{split_name}"] = np.asarray(y, dtype=np.float32)
@@ -135,7 +162,7 @@ def build_sequence_artifact(
     np.savez(
         output_path,
         **sequences,
-        feature_columns=np.asarray(cols_to_use),
+        feature_columns=np.asarray(feature_only),
         seq_length=np.asarray(seq_length),
         forecast_horizon=np.asarray(forecast_horizon),
     )
@@ -160,6 +187,12 @@ def load_sequence_artifact(path):
 def best_f1_threshold(y_true, y_prob, fallback=0.5):
     y_true = np.asarray(y_true).flatten().astype(int)
     y_prob = np.asarray(y_prob).flatten()
+    if len(y_true) != len(y_prob):
+        n = min(len(y_true), len(y_prob))
+        y_true = y_true[-n:]
+        y_prob = y_prob[-n:]
+    if len(y_true) == 0:
+        return float(fallback)
     if len(np.unique(y_true)) < 2:
         return float(fallback)
     prec, rec, thresh = precision_recall_curve(y_true, y_prob)
